@@ -124,7 +124,18 @@ export const DeviceInfoPanel = () => {
           <Row label="Throughput" value={<span className={clsx('font-mono', utilClass)}>{formatBandwidth(link.throughputMbps)}</span>} />
           <Row label="Capacity" value={formatBandwidth(link.capacityMbps)} />
           <Row label="Latency" value={formatLatency(link.latencyMs)} mono />
-          <Row label="Packet loss" value={formatPercent(link.packetLossPct, 3)} mono />
+          <Row
+            label="Drop Rate"
+            value={
+              <span className={clsx(
+                'badge text-[10px]',
+                link.packetLossPct === 0   ? 'badge-slate' :
+                link.packetLossPct <= 1    ? 'badge-amber' : 'badge-red',
+              )}>
+                {formatPercent(link.packetLossPct, 3)}
+              </span>
+            }
+          />
           <Row label="Src port" value={`${link.sourceDeviceId}:${link.sourcePort}`} mono />
           <Row label="Dst port" value={`${link.targetDeviceId}:${link.targetPort}`} mono />
         </div>

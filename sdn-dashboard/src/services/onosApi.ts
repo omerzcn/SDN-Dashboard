@@ -457,6 +457,10 @@ export interface PortStatSnapshot {
   rxPackets: number
   txPackets: number
   durationSec: number
+  rxDropped: number
+  txDropped: number
+  rxErrors: number
+  txErrors: number
 }
 
 export const fetchPortStats = async (deviceIds: string[]): Promise<PortStatSnapshot[]> => {
@@ -476,6 +480,10 @@ export const fetchPortStats = async (deviceIds: string[]): Promise<PortStatSnaps
               rxPackets: p.packetsReceived ?? 0,
               txPackets: p.packetsSent     ?? 0,
               durationSec: p.durationSec  ?? 0,
+              rxDropped: p.packetsRxDropped ?? 0,
+              txDropped: p.packetsTxDropped ?? 0,
+              rxErrors:  p.packetsRxErrors  ?? 0,
+              txErrors:  p.packetsTxErrors  ?? 0,
             })
           })
         })

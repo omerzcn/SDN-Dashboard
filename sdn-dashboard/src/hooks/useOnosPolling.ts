@@ -112,10 +112,14 @@ export const useOnosPolling = () => {
 
           const utilPct = Math.min(100, (tputMbps / link.capacityMbps) * 100)
 
+          const totalDropped = srcStats.rxDropped + srcStats.txDropped
+          const totalPackets = srcStats.rxPackets + srcStats.txPackets
+          const dropRatePct  = (totalDropped / Math.max(totalPackets, 1)) * 100
+
           updateLinkMetrics(link.id, {
             bandwidth:  tputMbps,
             latency:    link.latencyMs,
-            packetLoss: link.packetLossPct,
+            packetLoss: dropRatePct,
             rxBytes:    srcStats.rxBytes,
             txBytes:    srcStats.txBytes,
           }, ts)
@@ -124,6 +128,7 @@ export const useOnosPolling = () => {
             ...link,
             throughputMbps: tputMbps,
             utilizationPct: utilPct,
+            packetLossPct: dropRatePct,
           })
         }
       })
