@@ -25,7 +25,6 @@ export const useOnosPolling = () => {
   const setWsState     = useNetworkStore((s) => s.setWsConnectionState)
   const setFlows       = useFlowStore((s) => s.setFlows)
   const updateLinkMetrics = useMetricsStore((s) => s.updateLinkMetrics)
-  const devices        = useNetworkStore((s) => s.devices)
 
   // Track previous device set to detect joins/leaves
   const prevDeviceIds  = useRef<Set<string>>(new Set())
@@ -77,7 +76,7 @@ export const useOnosPolling = () => {
 
   // ── Port statistics → link metrics poll ──────────────────────────────────
   const pollMetrics = useCallback(async () => {
-    const switchIds = devices
+    const switchIds = useNetworkStore.getState().devices
       .filter((d) => d.type === 'switch' && d.onosId)
       .map((d) => d.onosId!)
 
@@ -103,6 +102,8 @@ export const useOnosPolling = () => {
 
         if (srcStats) {
           const tputMbps = (srcStats.txBytes * 8) / 1e6 / (srcStats.durationSec || 1)
+          const utilPct = Math.min(100, (tputMbps / link.capacityMbps) * 100)
+
           updateLinkMetrics(link.id, {
             bandwidth:  tputMbps,
             latency:    link.latencyMs,
@@ -110,12 +111,18 @@ export const useOnosPolling = () => {
             rxBytes:    srcStats.rxBytes,
             txBytes:    srcStats.txBytes,
           }, ts)
+
+          useNetworkStore.getState().updateLink({
+            ...link,
+            throughputMbps: tputMbps,
+            utilizationPct: utilPct,
+          })
         }
       })
     } catch (err) {
       console.warn('[OnosPolling] metrics fetch failed:', err)
     }
-  }, [devices, updateLinkMetrics])
+  }, [updateLinkMetrics])
 
   // ── Start / stop ──────────────────────────────────────────────────────────
   useEffect(() => {

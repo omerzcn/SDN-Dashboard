@@ -465,16 +465,18 @@ export const fetchPortStats = async (deviceIds: string[]): Promise<PortStatSnaps
     deviceIds.map(async (id) => {
       try {
         const raw = await getPortStats(id)
-        const entries: Array<{ port: string; statistics: any }> = raw.statistics ?? []
-        entries.forEach((e) => {
-          results.push({
-            deviceId: id,
-            port: Number(e.port),
-            rxBytes:   e.statistics?.bytesReceived   ?? 0,
-            txBytes:   e.statistics?.bytesSent       ?? 0,
-            rxPackets: e.statistics?.packetsReceived ?? 0,
-            txPackets: e.statistics?.packetsSent     ?? 0,
-            durationSec: e.statistics?.durationSec  ?? 0,
+        const deviceEntries: Array<{ device: string; ports: any[] }> = raw.statistics ?? []
+        deviceEntries.forEach((de) => {
+          (de.ports ?? []).forEach((p: any) => {
+            results.push({
+              deviceId: id,
+              port: Number(p.port),
+              rxBytes:   p.bytesReceived   ?? 0,
+              txBytes:   p.bytesSent       ?? 0,
+              rxPackets: p.packetsReceived ?? 0,
+              txPackets: p.packetsSent     ?? 0,
+              durationSec: p.durationSec  ?? 0,
+            })
           })
         })
       } catch { /* device might not have stats API */ }
