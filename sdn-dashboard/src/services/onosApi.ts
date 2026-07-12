@@ -409,6 +409,23 @@ export const fetchTopology = async (): Promise<{
     })
   })
 
+  // Adding links between ONOS Controller and switches
+  switches.forEach((sw) => {
+    links.push({
+      id: `${controller.id}-${sw.id}`,
+      sourceDeviceId: controller.id,
+      sourcePort: 0,
+      targetDeviceId: sw.id,
+      targetPort: 0,
+      utilizationPct: 0,
+      capacityMbps: 0,
+      throughputMbps: 0,
+      latencyMs: 0,
+      packetLossPct: 0,
+      isUp: sw.status === 'online',
+    })
+  })
+
   return {
     topology: {
       devices: [controller, ...switches, ...hosts],
