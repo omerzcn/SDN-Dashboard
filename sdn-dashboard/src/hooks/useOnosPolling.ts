@@ -31,6 +31,9 @@ export const useOnosPolling = () => {
   const topoTimer      = useRef<ReturnType<typeof setInterval> | null>(null)
   const metricsTimer   = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Instantaneous Throughput (Byte-Delta Method)
+  const prevBytesRef   = useRef<Map<string, number>>(new Map())
+
   // ── Topology + flows poll ─────────────────────────────────────────────────
   const pollTopology = useCallback(async () => {
     try {
@@ -101,7 +104,12 @@ export const useOnosPolling = () => {
           ?.find((s) => s.port === link.sourcePort)
 
         if (srcStats) {
-          const tputMbps = (srcStats.txBytes * 8) / 1e6 / (srcStats.durationSec || 1)
+          const key        = `${link.sourceDeviceId}:${link.sourcePort}`
+          const prevBytes   = prevBytesRef.current.get(key) ?? srcStats.txBytes
+          const deltaBytes  = Math.max(0, srcStats.txBytes - prevBytes)
+          const tputMbps    = (deltaBytes * 8) / 1e6 / (METRICS_MS / 1000)
+          prevBytesRef.current.set(key, srcStats.txBytes)
+
           const utilPct = Math.min(100, (tputMbps / link.capacityMbps) * 100)
 
           updateLinkMetrics(link.id, {
