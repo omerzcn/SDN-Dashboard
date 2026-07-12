@@ -10,7 +10,6 @@ import { ExperimentsPage} from '@/pages/ExperimentsPage'
 import { SFCPage        } from '@/pages/SFCPage'
 import { AlertsPage     } from '@/pages/AlertsPage'
 import { SettingsPage   } from '@/pages/SettingsPage'
-import { useWebSocketManager } from '@/hooks/useWebSocket'
 import { useOnosPolling } from '@/hooks/useOnosPolling'
 import { startMockSimulation } from '@/utils/mockData'
 
@@ -24,8 +23,6 @@ const RealModePolling = () => {
 }
 
 const App = () => {
-  useWebSocketManager()
-
   useEffect(() => {
     if (DEMO_MODE) startMockSimulation()
   }, [])
