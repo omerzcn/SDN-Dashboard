@@ -78,6 +78,12 @@ export const DeviceCard = ({ device, onSelect }: DeviceCardProps) => {
             <p className="text-xs font-mono text-slate-300 truncate">{device.onosId.slice(-8)}</p>
           </div>
         )}
+        {device.macAddress && (
+          <div>
+            <p className="metric-label">MAC</p>
+            <p className="text-xs font-mono text-slate-300">{device.macAddress}</p>
+          </div>
+        )}
         {device.portCount !== undefined && (
           <div>
             <p className="metric-label">Ports</p>

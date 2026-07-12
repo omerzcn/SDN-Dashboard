@@ -304,7 +304,7 @@ const parseInstructions = (
 export const transformOnosDevice = (d: OnosDevice): Device => ({
   id: d.id,
   type: 'switch',
-  label: d.annotations?.name ?? d.annotations?.channelId ?? d.id,
+  label: d.annotations?.datapathDescription ?? d.annotations?.channelId ?? d.id,
   status: d.available ? 'online' : 'offline',
   ipAddress: d.annotations?.managementAddress ?? d.annotations?.channelId?.split(':')[0] ?? '',
   macAddress: undefined,
@@ -317,15 +317,26 @@ export const transformOnosDevice = (d: OnosDevice): Device => ({
   metadata: d.annotations,
 })
 
-export const transformOnosHost = (h: OnosHost): Device => ({
-  id: h.id,
-  type: 'host',
-  label: h.id.slice(0, 17),           // MAC as label until resolved
-  status: 'online',
-  ipAddress: h.ipAddresses?.[0] ?? '',
-  macAddress: h.mac,
-  lastSeen: new Date().toISOString(),
-})
+// For hosts, renaming
+const KNOWN_HOST_NAMES: Record<string, string> = {
+  '10.0.0.3': 'host1',
+  '10.0.0.4': 'host2',
+  '10.0.0.5': 'host3',
+  '10.0.0.6': 'host4',
+}
+
+export const transformOnosHost = (h: OnosHost): Device => {
+  const ip = h.ipAddresses?.[0] ?? ''
+  return {
+    id: h.id,
+    type: 'host',
+    label: KNOWN_HOST_NAMES[ip] ?? h.id.slice(0, 17),
+    status: 'online',
+    ipAddress: ip,
+    macAddress: h.mac,
+    lastSeen: new Date().toISOString(),
+  }
+}
 
 let linkSerial = 0
 export const transformOnosLink = (l: OnosLink): Link => ({
