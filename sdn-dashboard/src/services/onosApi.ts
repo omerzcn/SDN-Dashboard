@@ -44,7 +44,7 @@ interface OnosHost {
   mac: string
   vlan: string
   ipAddresses: string[]
-  location: { elementId: string; port: string }
+  locations: Array<{ elementId: string; port: string }>
   configured: boolean
 }
 
