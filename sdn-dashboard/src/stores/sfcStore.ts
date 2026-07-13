@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { ServiceFunctionChain, SFCHopMetrics } from '@/types'
 import { SLICE_COLOR_HEX } from '@/stores/sliceStore'
 
@@ -118,58 +119,69 @@ interface SFCState {
 
 let chainCounter = 0
 
-export const useSFCStore = create<SFCState>()((set, get) => ({
-  chains: SEED_CHAINS,
-  selectedChainId: null,
+export const useSFCStore = create<SFCState>()(
+  persist(
+    (set, get) => ({
+      chains: SEED_CHAINS,
+      selectedChainId: null,
 
-  setSelectedChain: (id) => set({ selectedChainId: id }),
+      setSelectedChain: (id) => set({ selectedChainId: id }),
 
-  addChain: (data) => {
-    const id = `sfc-${Date.now()}-${++chainCounter}`
-    set((s) => ({
-      chains: [...s.chains, { ...data, id, createdAt: new Date().toISOString() }],
-    }))
-    return id
-  },
+      addChain: (data) => {
+        const id = `sfc-${Date.now()}-${++chainCounter}`
+        set((s) => ({
+          chains: [...s.chains, { ...data, id, createdAt: new Date().toISOString() }],
+        }))
+        return id
+      },
 
-  removeChain: (id) =>
-    set((s) => ({
-      chains: s.chains.filter((c) => c.id !== id),
-      selectedChainId: s.selectedChainId === id ? null : s.selectedChainId,
-    })),
+      removeChain: (id) =>
+        set((s) => ({
+          chains: s.chains.filter((c) => c.id !== id),
+          selectedChainId: s.selectedChainId === id ? null : s.selectedChainId,
+        })),
 
-  updateChainState: (id, state) =>
-    set((s) => ({
-      chains: s.chains.map((c) => c.id === id ? { ...c, state } : c),
-    })),
+      updateChainState: (id, state) =>
+        set((s) => ({
+          chains: s.chains.map((c) => c.id === id ? { ...c, state } : c),
+        })),
 
-  updateChain: (id, patch) =>
-    set((s) => ({
-      chains: s.chains.map((c) => c.id === id ? { ...c, ...patch } : c),
-    })),
+      updateChain: (id, patch) =>
+        set((s) => ({
+          chains: s.chains.map((c) => c.id === id ? { ...c, ...patch } : c),
+        })),
 
-  tickHopMetrics: () =>
-    set((s) => ({
-      chains: s.chains.map((chain) => ({
-        ...chain,
-        hops: chain.hops.map((hop, i) => {
-          const seed = SEED_CHAINS.find((c) => c.id === chain.id)?.hops[i]?.metrics
-          if (!seed || chain.state === 'failed') return hop
-          // Degraded chains: last hop sees near-zero throughput
-          const isDegradedLastHop = chain.state === 'degraded' && i === chain.hops.length - 1
-          const newMetrics: SFCHopMetrics = isDegradedLastHop
-            ? { latencyMs: 0, throughputMbps: 0, packetLossPct: 100, packetsProcessed: hop.metrics.packetsProcessed }
-            : {
-                latencyMs:         noise(seed.latencyMs, 0.15),
-                throughputMbps:    noise(seed.throughputMbps, 0.1),
-                packetLossPct:     noise(seed.packetLossPct, 0.5),
-                packetsProcessed:  hop.metrics.packetsProcessed + Math.floor(Math.random() * 120),
-              }
-          return { ...hop, metrics: newMetrics }
-        }),
-      })),
-    })),
-}))
+      tickHopMetrics: () =>
+        set((s) => ({
+          chains: s.chains.map((chain) => ({
+            ...chain,
+            hops: chain.hops.map((hop, i) => {
+              const seed = SEED_CHAINS.find((c) => c.id === chain.id)?.hops[i]?.metrics
+              if (!seed || chain.state === 'failed') return hop
+              // Degraded chains: last hop sees near-zero throughput
+              const isDegradedLastHop = chain.state === 'degraded' && i === chain.hops.length - 1
+              const newMetrics: SFCHopMetrics = isDegradedLastHop
+                ? { latencyMs: 0, throughputMbps: 0, packetLossPct: 100, packetsProcessed: hop.metrics.packetsProcessed }
+                : {
+                    latencyMs:         noise(seed.latencyMs, 0.15),
+                    throughputMbps:    noise(seed.throughputMbps, 0.1),
+                    packetLossPct:     noise(seed.packetLossPct, 0.5),
+                    packetsProcessed:  hop.metrics.packetsProcessed + Math.floor(Math.random() * 120),
+                  }
+              return { ...hop, metrics: newMetrics }
+            }),
+          })),
+        })),
+    }),
+    {
+      name: 'sdn-dashboard-sfc',
+      partialize: (state) => ({
+        chains: state.chains,
+        selectedChainId: state.selectedChainId,
+      }),
+    },
+  ),
+)
 
 // ── Color helpers (re-exported for consumers) ─────────────────────────────────
 
