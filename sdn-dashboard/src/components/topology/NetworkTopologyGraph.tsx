@@ -540,8 +540,13 @@ export const NetworkTopologyGraph = forwardRef<NetworkTopologyGraphHandle, Netwo
   }, [highlightDeviceIds, highlightLinkIds, highlightColor])
 
   // ── Cytoscape event wiring ──────────────────────────────────────────────────
+  // Build path didn't allow 2 node selection at once.
+  // Fix: Storing Cytoscape instance, so now a click fires handler exactly one time.
+  const [cyInstance, setCyInstance] = useState<Cytoscape.Core | null>(null)
+
   const handleCyReady = useCallback((cy: Cytoscape.Core) => {
     cyRef.current = cy
+    setCyInstance(cy)
     // Each time Cytoscape mounts (or re-mounts), reset the layout gate
     // so the ResizeObserver can fire the layout once the container is sized.
     layoutDoneRef.current = false
@@ -555,9 +560,14 @@ export const NetworkTopologyGraph = forwardRef<NetworkTopologyGraphHandle, Netwo
         applyLayeredPositions()
       }
     }
+  }, [])
+
+  useEffect(() => {
+    const cy = cyInstance
+    if (!cy) return
 
     // Node click → select + tooltip; also fires path builder callback
-    cy.on('tap', 'node', (evt) => {
+    const onNodeTap = (evt: Cytoscape.EventObject) => {
       const node = evt.target
       const device: Device = node.data('device')
       if (pathBuilderMode) {
@@ -566,28 +576,28 @@ export const NetworkTopologyGraph = forwardRef<NetworkTopologyGraphHandle, Netwo
       const sel: SelectedElement = { type: 'device', id: device.id }
       setSelectedElement(sel)
       onSelect?.(sel)
-    })
+    }
 
     // Edge click
-    cy.on('tap', 'edge', (evt) => {
+    const onEdgeTap = (evt: Cytoscape.EventObject) => {
       const edge = evt.target
       const link: Link = edge.data('link')
       const sel: SelectedElement = { type: 'link', id: link.id }
       setSelectedElement(sel)
       onSelect?.(sel)
-    })
+    }
 
     // Background click → deselect
-    cy.on('tap', (evt) => {
+    const onBgTap = (evt: Cytoscape.EventObject) => {
       if (evt.target === cy) {
         setSelectedElement({ type: null, id: null })
         onSelect?.({ type: null, id: null })
         setTooltip(null)
       }
-    })
+    }
 
     // Hover tooltip + path builder cursor
-    cy.on('mouseover', 'node', (evt) => {
+    const onNodeHover = (evt: Cytoscape.EventObject) => {
       if (pathBuilderMode) {
         evt.target.style({ 'cursor': 'crosshair' })
       }
@@ -599,9 +609,9 @@ export const NetworkTopologyGraph = forwardRef<NetworkTopologyGraphHandle, Netwo
         y: pos.y - 10,
         content: <DeviceTooltip device={device} />,
       })
-    })
+    }
 
-    cy.on('mouseover', 'edge', (evt) => {
+    const onEdgeHover = (evt: Cytoscape.EventObject) => {
       const edge = evt.target
       const link: Link = edge.data('link')
       const mp = evt.renderedPosition
@@ -610,16 +620,38 @@ export const NetworkTopologyGraph = forwardRef<NetworkTopologyGraphHandle, Netwo
         y: mp.y - 10,
         content: <LinkTooltip link={link} />,
       })
-    })
+    }
 
-    cy.on('mouseout', 'node, edge', () => setTooltip(null))
-    cy.on('drag', 'node', () => setTooltip(null))
+    const onHoverOut = () => setTooltip(null)
+    const onDrag = () => setTooltip(null)
     // Record manually-dragged nodes so applyLayeredPositions skips them
-    cy.on('dragfree', 'node', (evt) => {
+    const onDragFree = (evt: Cytoscape.EventObject) => {
       draggedNodesRef.current.add(evt.target.id())
-    })
-    cy.on('zoom pan', () => setTooltip(null))
-  }, [setSelectedElement, onSelect, pathBuilderMode, onPathNodeClick])
+    }
+    const onViewportChange = () => setTooltip(null)
+
+    cy.on('tap', 'node', onNodeTap)
+    cy.on('tap', 'edge', onEdgeTap)
+    cy.on('tap', onBgTap)
+    cy.on('mouseover', 'node', onNodeHover)
+    cy.on('mouseover', 'edge', onEdgeHover)
+    cy.on('mouseout', 'node, edge', onHoverOut)
+    cy.on('drag', 'node', onDrag)
+    cy.on('dragfree', 'node', onDragFree)
+    cy.on('zoom pan', onViewportChange)
+
+    return () => {
+      cy.off('tap', 'node', onNodeTap)
+      cy.off('tap', 'edge', onEdgeTap)
+      cy.off('tap', onBgTap)
+      cy.off('mouseover', 'node', onNodeHover)
+      cy.off('mouseover', 'edge', onEdgeHover)
+      cy.off('mouseout', 'node, edge', onHoverOut)
+      cy.off('drag', 'node', onDrag)
+      cy.off('dragfree', 'node', onDragFree)
+      cy.off('zoom pan', onViewportChange)
+    }
+  }, [cyInstance, setSelectedElement, onSelect, pathBuilderMode, onPathNodeClick])
 
   return (
     <div
