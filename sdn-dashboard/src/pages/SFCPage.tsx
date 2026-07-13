@@ -3,12 +3,99 @@ import { TopBar } from '@/components/layout/TopBar'
 import { NetworkTopologyGraph } from '@/components/topology/NetworkTopologyGraph'
 import { useSFCStore, SLICE_COLOR_HEX, SF_META } from '@/stores/sfcStore'
 import { useNetworkStore } from '@/stores/networkStore'
-import type { ServiceFunctionChain, SFCHop, ChainState } from '@/types'
+import { addFlow } from '@/services/onosApi'
+import type { ServiceFunctionChain, SFCHop, ChainState, Device, Link, SliceColor } from '@/types'
 import { clsx } from 'clsx'
 import {
   ArrowRight, Plus, Trash2, Activity, AlertTriangle,
-  CheckCircle2, Clock, Layers3,
+  CheckCircle2, Clock, Layers3, Zap, Loader2, X,
 } from 'lucide-react'
+
+const SFC_VLAN_ID = 100
+
+// Added a link id for linkPath, so health-monitoring can match it later
+const findLink = (links: Link[], aId: string, bId: string): Link | undefined =>
+  links.find((l) =>
+    (l.sourceDeviceId === aId && l.targetDeviceId === bId) ||
+    (l.targetDeviceId === aId && l.sourceDeviceId === bId),
+  )
+
+// Installs VLAN-tagged flow rules for each hop of a chain onto the real
+// switches: ingress tags + forwards, transit hops match on the tag alone,
+// egress strips the tag before delivering to the destination host.
+const deployChainToOnos = async (chain: ServiceFunctionChain) => {
+  const { devices, links, addAlert } = useNetworkStore.getState()
+
+  const srcIp = devices.find((d) => d.id === chain.srcHostId)?.ipAddress
+  const dstIp = devices.find((d) => d.id === chain.dstHostId)?.ipAddress
+  if (!srcIp || !dstIp) {
+    throw new Error('Source or destination host not found in the current topology.')
+  }
+  if (chain.hops.length === 0) {
+    throw new Error('Chain has no switch hops to deploy.')
+  }
+
+  // Full node path: src host -> each hop switch -> dst host
+  const nodePath = [chain.srcHostId, ...chain.hops.map((h) => h.deviceId), chain.dstHostId]
+
+  const findOutPort = (fromId: string, toId: string): number | undefined => {
+    const link = findLink(links, fromId, toId)
+    if (!link) return undefined
+    return link.sourceDeviceId === fromId ? link.sourcePort : link.targetPort
+  }
+
+  const newHops: SFCHop[] = []
+
+  for (let i = 0; i < chain.hops.length; i++) {
+    const swId = chain.hops[i].deviceId
+    const nextNodeId = nodePath[i + 2]
+    const outPort = findOutPort(swId, nextNodeId)
+    if (outPort === undefined) {
+      throw new Error(`No link found from ${swId} to ${nextNodeId} — check the chain's hop order.`)
+    }
+
+    const isIngress = i === 0
+    const isEgress = i === chain.hops.length - 1
+    let result: { flowId: string; deviceId: string }
+
+    if (isIngress && isEgress) {
+      // Single-switch chain
+      result = await addFlow(swId, 45000,
+        { ipSrc: srcIp + '/32', ipDst: dstIp + '/32', ethType: '0x0800' },
+        [{ type: 'OUTPUT', port: outPort }],
+      )
+    } else if (isIngress) {
+      result = await addFlow(swId, 45000,
+        { ipSrc: srcIp + '/32', ipDst: dstIp + '/32', ethType: '0x0800' },
+        [
+          { type: 'PUSH_VLAN' },
+          { type: 'SET_VLAN_ID', vlanId: SFC_VLAN_ID },
+          { type: 'OUTPUT', port: outPort },
+        ],
+      )
+    } else if (isEgress) {
+      result = await addFlow(swId, 45000,
+        { vlanId: SFC_VLAN_ID },
+        [{ type: 'SET_VLAN_ID', vlanId: 0 }, { type: 'OUTPUT', port: outPort }],
+      )
+    } else {
+      result = await addFlow(swId, 45000,
+        { vlanId: SFC_VLAN_ID },
+        [{ type: 'OUTPUT', port: outPort }],
+      )
+    }
+
+    newHops.push({ ...chain.hops[i], flowIds: [result.flowId] })
+  }
+
+  useSFCStore.getState().updateChain(chain.id, { state: 'active', hops: newHops })
+
+  addAlert({
+    severity: 'info',
+    title: 'SFC chain deployed',
+    message: `"${chain.name}" — flow rules installed on ${chain.hops.length} switch${chain.hops.length !== 1 ? 'es' : ''}.`,
+  })
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -229,6 +316,24 @@ const ChainDetail = ({
     ? AlertTriangle
     : Clock
 
+  const [deploying, setDeploying] = useState(false)
+  const addAlert = useNetworkStore((s) => s.addAlert)
+
+  const handleDeploy = async () => {
+    setDeploying(true)
+    try {
+      await deployChainToOnos(chain)
+    } catch (err) {
+      addAlert({
+        severity: 'error',
+        title: 'SFC deploy failed',
+        message: err instanceof Error ? err.message : String(err),
+      })
+    } finally {
+      setDeploying(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -240,6 +345,15 @@ const ChainDetail = ({
           <StateIcon className="w-4 h-4" style={{ color: sm.cls.includes('green') ? '#22c55e' : sm.cls.includes('amber') ? '#f59e0b' : '#ef4444' }} />
           <h3 className="text-sm font-bold text-slate-100">{chain.name}</h3>
           <span className={clsx('badge text-[10px]', sm.cls)}>{sm.label}</span>
+          <button
+            onClick={handleDeploy}
+            disabled={deploying}
+            className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-sdn-600 hover:bg-sdn-500 disabled:opacity-50 text-white transition-colors"
+          >
+            {deploying
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deploying…</>
+              : <><Zap className="w-3.5 h-3.5" /> Deploy to ONOS</>}
+          </button>
         </div>
         <p className="text-xs text-slate-500">{chain.description}</p>
       </div>
@@ -332,11 +446,180 @@ const ChainDetail = ({
   )
 }
 
+// New Chain button adjustments
+
+const CHAIN_COLORS: SliceColor[] = ['blue', 'green', 'amber', 'red', 'purple']
+
+const selectCls = 'w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-200'
+const labelCls = 'text-xs text-slate-400 block mb-1'
+
+const NewChainModal = ({
+  devices,
+  links,
+  onClose,
+}: {
+  devices: Device[]
+  links: Link[]
+  onClose: () => void
+}) => {
+  const addChain = useSFCStore((s) => s.addChain)
+  const hosts = devices.filter((d) => d.type === 'host')
+  const switches = devices.filter((d) => d.type === 'switch')
+
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [color, setColor] = useState<SliceColor>('blue')
+  const [srcHostId, setSrcHostId] = useState('')
+  const [dstHostId, setDstHostId] = useState('')
+  const [hopIds, setHopIds] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  const availableHops = switches.filter((sw) => !hopIds.includes(sw.id))
+
+  const removeHop = (id: string) => setHopIds((h) => h.filter((x) => x !== id))
+
+  const handleCreate = () => {
+    if (!name.trim()) { setError('Name is required.'); return }
+    if (!srcHostId || !dstHostId) { setError('Select a source and destination host.'); return }
+    if (srcHostId === dstHostId) { setError('Source and destination must be different hosts.'); return }
+    if (hopIds.length === 0) { setError('Add at least one switch hop.'); return }
+
+    // link IDs for the full path
+    const nodePath = [srcHostId, ...hopIds, dstHostId]
+    const linkPath: string[] = []
+    for (let i = 0; i < nodePath.length - 1; i++) {
+      const link = findLink(links, nodePath[i], nodePath[i + 1])
+      if (!link) {
+        setError(`No real link found between ${nodePath[i]} and ${nodePath[i + 1]} — check hop order.`)
+        return
+      }
+      linkPath.push(link.id)
+    }
+
+    addChain({
+      name: name.trim(),
+      description: description.trim() || 'Manually built chain',
+      color,
+      srcHostId,
+      dstHostId,
+      state: 'configuring',
+      linkPath,
+      hops: hopIds.map((id, i) => ({
+        deviceId: id,
+        serviceFunction: `Hop ${i + 1}`,
+        sfType: 'monitor',
+        flowIds: [],
+        metrics: { latencyMs: 0, throughputMbps: 0, packetLossPct: 0, packetsProcessed: 0 },
+      })),
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="glass-card p-6 w-[26rem] space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-slate-100">New Service Function Chain</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-slate-700/50">
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className={labelCls}>Name</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={selectCls}
+              placeholder="e.g. Test SFC"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Description</label>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={selectCls}
+              placeholder="optional"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Color</label>
+            <div className="flex gap-2">
+              {CHAIN_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className={clsx(
+                    'w-6 h-6 rounded-full border-2 transition-all',
+                    color === c ? 'border-slate-200 scale-110' : 'border-transparent',
+                  )}
+                  style={{ background: SLICE_COLOR_HEX[c] }}
+                  title={c}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Source host</label>
+              <select value={srcHostId} onChange={(e) => setSrcHostId(e.target.value)} className={selectCls}>
+                <option value="">Select…</option>
+                {hosts.map((h) => <option key={h.id} value={h.id}>{h.label} ({h.ipAddress})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Destination host</label>
+              <select value={dstHostId} onChange={(e) => setDstHostId(e.target.value)} className={selectCls}>
+                <option value="">Select…</option>
+                {hosts.map((h) => <option key={h.id} value={h.id}>{h.label} ({h.ipAddress})</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Switch hops (in order, source → destination)</label>
+            <select value="" onChange={(e) => e.target.value && setHopIds((h) => [...h, e.target.value])} className={selectCls}>
+              <option value="">+ Add switch…</option>
+              {availableHops.map((sw) => <option key={sw.id} value={sw.id}>{sw.label}</option>)}
+            </select>
+            {hopIds.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {hopIds.map((id, i) => {
+                  const sw = switches.find((s) => s.id === id)
+                  return (
+                    <span key={id} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-xs text-slate-300">
+                      {i + 1}. {sw?.label ?? id}
+                      <button onClick={() => removeHop(id)} className="text-slate-500 hover:text-red-400 ml-1">×</button>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-red-400">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleCreate} className="px-4 py-1.5 rounded bg-sdn-600 hover:bg-sdn-500 text-white text-sm transition-colors">
+            Create Chain
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export const SFCPage = () => {
   const { chains, selectedChainId, setSelectedChain, removeChain } = useSFCStore()
   const devices = useNetworkStore((s) => s.devices)
+  const links = useNetworkStore((s) => s.links)
 
   const [showAddModal, setShowAddModal] = useState(false)
 
@@ -449,26 +732,13 @@ export const SFCPage = () => {
         </div>
       </div>
 
-      {/* ── Add Chain modal (stub) ──────────────────────────────────────────── */}
+      {/* Add Chain modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="glass-card p-6 w-96 space-y-4 animate-fade-in">
-            <h3 className="font-semibold text-slate-100">New Service Function Chain</h3>
-            <p className="text-sm text-slate-400">
-              Use the Path Builder on the <strong className="text-slate-200">Flow Rules</strong> page
-              to build a path, then assign service functions to each hop.
-              Full chain editor coming soon.
-            </p>
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 rounded bg-sdn-600 hover:bg-sdn-500 text-white text-sm transition-colors"
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
+        <NewChainModal
+          devices={devices}
+          links={links}
+          onClose={() => setShowAddModal(false)}
+        />
       )}
     </div>
   )

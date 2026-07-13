@@ -110,6 +110,8 @@ interface SFCState {
   addChain: (chain: Omit<ServiceFunctionChain, 'id' | 'createdAt'>) => string
   removeChain: (id: string) => void
   updateChainState: (id: string, state: ServiceFunctionChain['state']) => void
+  /** Partial update for chain */
+  updateChain: (id: string, patch: Partial<ServiceFunctionChain>) => void
   /** Called by simulation tick to update per-hop live metrics */
   tickHopMetrics: () => void
 }
@@ -139,6 +141,11 @@ export const useSFCStore = create<SFCState>()((set, get) => ({
   updateChainState: (id, state) =>
     set((s) => ({
       chains: s.chains.map((c) => c.id === id ? { ...c, state } : c),
+    })),
+
+  updateChain: (id, patch) =>
+    set((s) => ({
+      chains: s.chains.map((c) => c.id === id ? { ...c, ...patch } : c),
     })),
 
   tickHopMetrics: () =>

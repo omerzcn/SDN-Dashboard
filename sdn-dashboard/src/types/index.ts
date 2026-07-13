@@ -118,7 +118,7 @@ export interface FlowMatch {
 }
 
 export interface FlowAction {
-  type: 'OUTPUT' | 'DROP' | 'SET_VLAN_ID' | 'SET_ETH_SRC' | 'SET_ETH_DST' | 'SET_IP_SRC' | 'SET_IP_DST' | 'METER' | 'GROUP'
+  type: 'OUTPUT' | 'DROP' | 'PUSH_VLAN' | 'SET_VLAN_ID' | 'SET_ETH_SRC' | 'SET_ETH_DST' | 'SET_IP_SRC' | 'SET_IP_DST' | 'METER' | 'GROUP'
   port?: number
   vlanId?: number
   macAddress?: string

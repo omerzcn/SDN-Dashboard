@@ -226,6 +226,8 @@ const buildOnosFlowBody = (
     switch (a.type) {
       case 'OUTPUT': return { type: 'OUTPUT', port: a.port }
       case 'DROP':   return { type: 'DROP' }
+      // Required PUSH_VLAN to deploy SFC chain to ONOS
+      case 'PUSH_VLAN': return { type: 'L2MODIFICATION', subtype: 'VLAN_PUSH', ethernetType: '0x8100' }
       case 'SET_VLAN_ID': return { type: 'L2MODIFICATION', subtype: 'VLAN_ID', vlanId: a.vlanId }
       case 'SET_ETH_SRC': return { type: 'L2MODIFICATION', subtype: 'ETH_SRC', mac: a.macAddress }
       case 'SET_ETH_DST': return { type: 'L2MODIFICATION', subtype: 'ETH_DST', mac: a.macAddress }
