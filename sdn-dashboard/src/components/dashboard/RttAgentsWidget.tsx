@@ -20,14 +20,13 @@ export const RttAgentsWidget = () => {
   const hosts = devices.filter((d) => d.type === 'host')
 
   const [newAgentHostId, setNewAgentHostId] = useState('')
-  const [newAgentIp, setNewAgentIp] = useState('')
   const [newTargetHostId, setNewTargetHostId] = useState('')
 
   const handleAdd = () => {
-    if (!newAgentHostId || !newAgentIp.trim() || !newTargetHostId) return
-    setRpiAgent(newAgentHostId, { agentIp: newAgentIp.trim(), targetHostId: newTargetHostId })
+    const agentIp = hosts.find((h) => h.id === newAgentHostId)?.ipAddress
+    if (!newAgentHostId || !agentIp || !newTargetHostId) return
+    setRpiAgent(newAgentHostId, { agentIp, targetHostId: newTargetHostId })
     setNewAgentHostId('')
-    setNewAgentIp('')
     setNewTargetHostId('')
   }
 
@@ -75,14 +74,8 @@ export const RttAgentsWidget = () => {
           className="w-full px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sdn-500"
         >
           <option value="">Agent host…</option>
-          {hosts.map((h) => <option key={h.id} value={h.id}>{h.label}</option>)}
+          {hosts.map((h) => <option key={h.id} value={h.id}>{h.label} ({h.ipAddress})</option>)}
         </select>
-        <input
-          value={newAgentIp}
-          onChange={(e) => setNewAgentIp(e.target.value)}
-          placeholder="Agent IP"
-          className="w-full px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-sdn-500 font-mono"
-        />
         <select
           value={newTargetHostId}
           onChange={(e) => setNewTargetHostId(e.target.value)}
@@ -93,7 +86,7 @@ export const RttAgentsWidget = () => {
         </select>
         <button
           onClick={handleAdd}
-          disabled={!newAgentHostId || !newAgentIp.trim() || !newTargetHostId}
+          disabled={!newAgentHostId || !newTargetHostId}
           className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-sdn-600 hover:bg-sdn-500 disabled:opacity-40 text-white text-xs font-medium transition-colors"
         >
           <Plus className="w-3.5 h-3.5" /> Add Agent
