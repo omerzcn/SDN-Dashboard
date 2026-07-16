@@ -20,4 +20,5 @@ def relay(agent_ip, agent_port, subpath):
         return jsonify({'error': str(e)}), 502
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5010)
+    # without threaded=True, flask's server handles one request at a time and not responding
+    app.run(host='0.0.0.0', port=5010, threaded=True)
