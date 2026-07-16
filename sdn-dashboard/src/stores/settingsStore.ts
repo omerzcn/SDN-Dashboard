@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AppSettings, ConnectionSettings, DashboardSettings } from '@/types'
+import type { AppSettings, ConnectionSettings, DashboardSettings, RpiAgentConfig } from '@/types'
 
 const DEFAULT_SETTINGS: AppSettings = {
   connection: {
@@ -21,11 +21,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     theme: 'dark',
     defaultLayout: 'force',
   },
+  rpiAgents: {},
 }
 
 interface SettingsState extends AppSettings {
   updateConnection: (partial: Partial<ConnectionSettings>) => void
   updateDashboard: (partial: Partial<DashboardSettings>) => void
+  setRpiAgent: (hostId: string, config: RpiAgentConfig) => void
+  removeRpiAgent: (hostId: string) => void
   resetToDefaults: () => void
   getWsUrl: () => string
   getOnosBaseUrl: () => string
@@ -41,6 +44,15 @@ export const useSettingsStore = create<SettingsState>()(
 
       updateDashboard: (partial) =>
         set((state) => ({ dashboard: { ...state.dashboard, ...partial } })),
+
+      setRpiAgent: (hostId, config) =>
+        set((state) => ({ rpiAgents: { ...state.rpiAgents, [hostId]: config } })),
+
+      removeRpiAgent: (hostId) =>
+        set((state) => {
+          const { [hostId]: _removed, ...rest } = state.rpiAgents
+          return { rpiAgents: rest }
+        }),
 
       resetToDefaults: () => set(DEFAULT_SETTINGS),
 
@@ -61,6 +73,7 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (state) => ({
         connection: state.connection,
         dashboard: state.dashboard,
+        rpiAgents: state.rpiAgents,
       }),
     },
   ),

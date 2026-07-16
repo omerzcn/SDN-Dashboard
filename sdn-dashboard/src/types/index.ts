@@ -308,9 +308,18 @@ export interface DashboardSettings {
   defaultLayout: 'force' | 'hierarchical' | 'grid'
 }
 
+export interface RpiAgentConfig {
+  /** IP of the host PC running the Flask ping agent */
+  agentIp: string
+  /** Device ID of the host to measure RTT toward */
+  targetHostId: string
+}
+
 export interface AppSettings {
   connection: ConnectionSettings
   dashboard: DashboardSettings
+  /** Keyed by the agent's own host device ID */
+  rpiAgents: Record<string, RpiAgentConfig>
 }
 
 // ─── UI State Types ───────────────────────────────────────────────────────────

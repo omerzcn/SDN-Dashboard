@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { fetchTopology, fetchPortStats } from '@/services/onosApi'
+import { fetchRtt } from '@/services/pingAgent'
 import { useNetworkStore } from '@/stores/networkStore'
 import { useFlowStore } from '@/stores/flowStore'
 import { useMetricsStore } from '@/stores/metricsStore'
@@ -18,6 +19,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 const TOPOLOGY_MS = Number(import.meta.env.VITE_TOPOLOGY_POLL_MS ?? 5_000)
 const FLOWS_MS    = Number(import.meta.env.VITE_FLOWS_POLL_MS    ?? 3_000)
 const METRICS_MS  = Number(import.meta.env.VITE_METRICS_POLL_MS  ?? 2_000)
+const RTT_MS      = Number(import.meta.env.VITE_RTT_POLL_MS      ?? 5_000)
 
 export const useOnosPolling = () => {
   const setTopology    = useNetworkStore((s) => s.setTopology)
@@ -30,6 +32,7 @@ export const useOnosPolling = () => {
   const prevDeviceIds  = useRef<Set<string>>(new Set())
   const topoTimer      = useRef<ReturnType<typeof setInterval> | null>(null)
   const metricsTimer   = useRef<ReturnType<typeof setInterval> | null>(null)
+  const rttTimer       = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Instantaneous Throughput (Byte-Delta Method)
   const prevBytesRef   = useRef<Map<string, number>>(new Map())
@@ -137,6 +140,30 @@ export const useOnosPolling = () => {
     }
   }, [updateLinkMetrics])
 
+  // RTT probe poll: each configured host agent pings its target host,
+  // result is written onto that host's access link as latencyMs
+  const pollRtt = useCallback(async () => {
+    const entries = Object.entries(useSettingsStore.getState().rpiAgents)
+    if (entries.length === 0) return
+
+    const devices    = useNetworkStore.getState().devices
+    const links      = useNetworkStore.getState().links
+    const updateLink = useNetworkStore.getState().updateLink
+
+    await Promise.all(entries.map(async ([hostId, { agentIp, targetHostId }]) => {
+      const targetIp = devices.find((d) => d.id === targetHostId)?.ipAddress
+      if (!targetIp) return
+
+      const rtt = await fetchRtt(agentIp, targetIp)
+      if (rtt === null) return
+
+      const link = links.find((l) => l.sourceDeviceId === hostId || l.targetDeviceId === hostId)
+      if (link) {
+        updateLink({ ...link, latencyMs: rtt })
+      }
+    }))
+  }, [])
+
   // ── Start / stop ──────────────────────────────────────────────────────────
   useEffect(() => {
     // Immediate first fetch
@@ -144,10 +171,12 @@ export const useOnosPolling = () => {
 
     topoTimer.current    = setInterval(pollTopology, TOPOLOGY_MS)
     metricsTimer.current = setInterval(pollMetrics,  METRICS_MS)
+    rttTimer.current      = setInterval(pollRtt,      RTT_MS)
 
     return () => {
       if (topoTimer.current)    clearInterval(topoTimer.current)
       if (metricsTimer.current) clearInterval(metricsTimer.current)
+      if (rttTimer.current)     clearInterval(rttTimer.current)
     }
-  }, [pollTopology, pollMetrics])
+  }, [pollTopology, pollMetrics, pollRtt])
 }

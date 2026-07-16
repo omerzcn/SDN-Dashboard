@@ -5,6 +5,7 @@ import { NetworkTopologyGraph } from '@/components/topology/NetworkTopologyGraph
 import { DeviceInfoPanel } from '@/components/topology/DeviceInfoPanel'
 import { MetricsPanel } from '@/components/metrics/MetricsPanel'
 import { AlertsPanel } from '@/components/alerts/AlertsPanel'
+import { RttAgentsWidget } from '@/components/dashboard/RttAgentsWidget'
 import { useNetworkStore } from '@/stores/networkStore'
 import { useFlowStore } from '@/stores/flowStore'
 import { clsx } from 'clsx'
@@ -210,7 +211,7 @@ export const DashboardPage = () => {
           </div>
 
           {/* Right column */}
-          <div className="flex flex-col gap-4 w-72">
+          <div className="flex flex-col gap-4 w-72 overflow-y-auto">
             {/* Network Health Score */}
             <NetworkHealthWidget />
 
@@ -218,6 +219,9 @@ export const DashboardPage = () => {
             {selectedElement.type && (
               <DeviceInfoPanel />
             )}
+
+            {/* RTT Agents */}
+            <RttAgentsWidget />
 
             {/* Alerts */}
             <div className="flex-1 glass-card p-4 overflow-y-auto min-h-0">
