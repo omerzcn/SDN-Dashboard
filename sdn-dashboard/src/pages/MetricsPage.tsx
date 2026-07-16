@@ -15,15 +15,21 @@ import { clsx } from 'clsx'
 
 const LinkHeatRow = ({ linkId }: { linkId: string }) => {
   const link = useNetworkStore((s) => s.getLink(linkId))
+  const getDevice = useNetworkStore((s) => s.getDevice)
   const metrics = useMetricsStore((s) => s.linkMetrics[linkId])
   if (!link) return null
+
+  const srcLabel = getDevice(link.sourceDeviceId)?.label ?? link.sourceDeviceId
+  const dstLabel = getDevice(link.targetDeviceId)?.label ?? link.targetDeviceId
 
   const util = link.utilizationPct
   const utilColor = util < 50 ? 'bg-green-500' : util < 75 ? 'bg-amber-500' : 'bg-red-500'
 
   return (
     <div className="flex items-center gap-3 py-2 border-b border-slate-800/60 last:border-0">
-      <div className="w-28 truncate text-xs text-slate-400 font-mono flex-shrink-0">{linkId}</div>
+      <div className="w-48 truncate text-xs text-slate-300 flex-shrink-0" title={linkId}>
+        {srcLabel} <span className="text-slate-600">↔</span> {dstLabel}
+      </div>
       <div className="flex-1 h-4 bg-slate-800 rounded overflow-hidden">
         <div
           className={clsx('h-full rounded transition-all duration-500', utilColor)}
@@ -171,7 +177,7 @@ export const MetricsPage = () => {
         <div className="glass-card p-4">
           <p className="text-sm font-semibold text-slate-200 mb-3">Link Status</p>
           <div className="flex items-center gap-3 pb-2 border-b border-slate-800 mb-1 text-xs text-slate-500 uppercase tracking-wider">
-            <span className="w-28">Link</span>
+            <span className="w-48">Link</span>
             <span className="flex-1">Utilization</span>
             <span className="w-12 text-right">Util %</span>
             <span className="w-20 text-right">Throughput</span>
