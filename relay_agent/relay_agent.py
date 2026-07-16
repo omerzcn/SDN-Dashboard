@@ -1,7 +1,9 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 import requests
 
 app = Flask(__name__)
+CORS(app)  # the Dashboard's browser fetch() is cross-origin; Flask doesn't allow that by default
 
 @app.route('/relay/<agent_ip>/<agent_port>/ping/<target>')
 def relay(agent_ip, agent_port, target):
