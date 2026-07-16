@@ -99,24 +99,47 @@ export const useOnosPolling = () => {
         byDevice.get(s.deviceId)!.push(s)
       })
 
-      // For each link, find matching port stats and derive metrics
+      // For each link, reading source so it appears in dashboard
       const links = useNetworkStore.getState().links
       links.forEach((link) => {
         if (!link.isUp) return
         const srcStats = byDevice.get(link.sourceDeviceId)
           ?.find((s) => s.port === link.sourcePort)
+        const dstStats = byDevice.get(link.targetDeviceId)
+          ?.find((s) => s.port === link.targetPort)
 
         if (srcStats) {
-          const key        = `${link.sourceDeviceId}:${link.sourcePort}`
-          const prevBytes   = prevBytesRef.current.get(key) ?? srcStats.txBytes
-          const deltaBytes  = Math.max(0, srcStats.txBytes - prevBytes)
-          const tputMbps    = (deltaBytes * 8) / 1e6 / (METRICS_MS / 1000)
-          prevBytesRef.current.set(key, srcStats.txBytes)
+          const srcKey       = `${link.sourceDeviceId}:${link.sourcePort}`
+          const prevSrcBytes = prevBytesRef.current.get(srcKey) ?? srcStats.txBytes
+          const deltaSrcBytes = Math.max(0, srcStats.txBytes - prevSrcBytes)
+          prevBytesRef.current.set(srcKey, srcStats.txBytes)
+
+          let deltaDstBytes = 0
+          if (dstStats) {
+            // Switch-to-switch link for both directions
+            const dstKey       = `${link.targetDeviceId}:${link.targetPort}`
+            const prevDstBytes = prevBytesRef.current.get(dstKey) ?? dstStats.txBytes
+            deltaDstBytes = Math.max(0, dstStats.txBytes - prevDstBytes)
+            prevBytesRef.current.set(dstKey, dstStats.txBytes)
+          } else {
+            // Host-access link
+            const srcRxKey       = `${link.sourceDeviceId}:${link.sourcePort}:rx`
+            const prevSrcRxBytes = prevBytesRef.current.get(srcRxKey) ?? srcStats.rxBytes
+            deltaDstBytes = Math.max(0, srcStats.rxBytes - prevSrcRxBytes)
+            prevBytesRef.current.set(srcRxKey, srcStats.rxBytes)
+          }
+
+          const deltaBytes = deltaSrcBytes + deltaDstBytes
+          const tputMbps   = (deltaBytes * 8) / 1e6 / (METRICS_MS / 1000)
 
           const utilPct = Math.min(100, (tputMbps / link.capacityMbps) * 100)
 
-          const totalDropped = srcStats.rxDropped + srcStats.txDropped
-          const totalPackets = srcStats.rxPackets + srcStats.txPackets
+          const totalDropped =
+            srcStats.rxDropped + srcStats.txDropped +
+            (dstStats?.rxDropped ?? 0) + (dstStats?.txDropped ?? 0)
+          const totalPackets =
+            srcStats.rxPackets + srcStats.txPackets +
+            (dstStats?.rxPackets ?? 0) + (dstStats?.txPackets ?? 0)
           const dropRatePct  = (totalDropped / Math.max(totalPackets, 1)) * 100
 
           updateLinkMetrics(link.id, {

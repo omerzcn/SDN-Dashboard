@@ -41,6 +41,11 @@ const LinkHeatRow = ({ linkId }: { linkId: string }) => {
       <div className="w-16 text-right text-xs font-mono text-slate-400">
         {formatLatency(link.latencyMs)}
       </div>
+      <div className={clsx('w-16 text-right text-xs font-mono',
+        link.packetLossPct === 0 ? 'text-slate-500' : link.packetLossPct <= 1 ? 'text-amber-400' : 'text-red-400',
+      )}>
+        {formatPercent(link.packetLossPct, 3)}
+      </div>
     </div>
   )
 }
@@ -171,6 +176,7 @@ export const MetricsPage = () => {
             <span className="w-12 text-right">Util %</span>
             <span className="w-20 text-right">Throughput</span>
             <span className="w-16 text-right">Latency</span>
+            <span className="w-16 text-right">Drop Rate</span>
           </div>
           {links.map((l) => (
             <div
