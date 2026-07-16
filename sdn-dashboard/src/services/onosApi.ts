@@ -303,10 +303,14 @@ const parseInstructions = (
 
 // ── Device / Host / Link transformers ────────────────────────────────────────
 
+// To appear deviceID in dashboard
+const cleanAnnotation = (v: string | undefined): string | undefined =>
+  v && v !== 'None' ? v : undefined
+
 export const transformOnosDevice = (d: OnosDevice): Device => ({
   id: d.id,
   type: 'switch',
-  label: d.annotations?.datapathDescription ?? d.annotations?.channelId ?? d.id,
+  label: cleanAnnotation(d.annotations?.datapathDescription) ?? d.annotations?.channelId ?? d.id,
   status: d.available ? 'online' : 'offline',
   ipAddress: d.annotations?.managementAddress ?? d.annotations?.channelId?.split(':')[0] ?? '',
   macAddress: undefined,
