@@ -21,15 +21,25 @@ const Row = ({ label, value, mono = false }: { label: string; value: React.React
 export const DeviceInfoPanel = () => {
   const selectedElement = useNetworkStore((s) => s.selectedElement)
   const setSelectedElement = useNetworkStore((s) => s.setSelectedElement)
-  const getDevice = useNetworkStore((s) => s.getDevice)
-  const getLink = useNetworkStore((s) => s.getLink)
+  // Selecting the object itself (not the getter function) so the panel
+  // re-renders on every poll while it stays open, instead of only refreshing
+  // when you re-click the same link/device.
+  const device = useNetworkStore((s) =>
+    selectedElement.type === 'device' && selectedElement.id
+      ? s.devices.find((d) => d.id === selectedElement.id)
+      : undefined,
+  )
+  const link = useNetworkStore((s) =>
+    selectedElement.type === 'link' && selectedElement.id
+      ? s.links.find((l) => l.id === selectedElement.id)
+      : undefined,
+  )
 
   if (!selectedElement.type || !selectedElement.id) return null
 
   const onClose = () => setSelectedElement({ type: null, id: null })
 
   if (selectedElement.type === 'device') {
-    const device = getDevice(selectedElement.id)
     if (!device) return null
 
     return (
@@ -88,7 +98,6 @@ export const DeviceInfoPanel = () => {
   }
 
   if (selectedElement.type === 'link') {
-    const link = getLink(selectedElement.id)
     if (!link) return null
 
     const utilClass = link.utilizationPct < 50 ? 'text-green-400' :
