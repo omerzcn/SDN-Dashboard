@@ -61,7 +61,7 @@ interface OnosFlow {
   state: string
   bytes: number
   packets: number
-  duration: number
+  life: number   // seconds this rule has been installed, per ONOS's FlowEntryCodec
   priority: number
   timeout: number
   isPermanent: boolean
@@ -258,6 +258,7 @@ export const transformOnosFlow = (f: OnosFlow): FlowRule => ({
   timeout: f.timeout,
   hardTimeout: 0,
   isPermanent: f.isPermanent,
+  durationSec: f.life,
   state: f.state as FlowRule['state'],
   match: parseCriteria(f.selector.criteria),
   actions: parseInstructions(f.treatment.instructions),

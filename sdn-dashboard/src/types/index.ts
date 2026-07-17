@@ -135,6 +135,8 @@ export interface FlowRule {
   timeout: number       // idle timeout in seconds (0 = permanent)
   hardTimeout: number   // hard timeout in seconds (0 = permanent)
   isPermanent: boolean
+  /** Seconds this rule has been installed, as tracked by the switch itself */
+  durationSec: number
   state: FlowState
   match: FlowMatch
   actions: FlowAction[]

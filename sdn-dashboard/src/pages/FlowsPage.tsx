@@ -5,6 +5,7 @@ import { NetworkTopologyGraph } from '@/components/topology/NetworkTopologyGraph
 import { SliceBar } from '@/components/flows/SliceBar'
 import { PathBuilder } from '@/components/flows/PathBuilder'
 import { useFlowStore } from '@/stores/flowStore'
+import { useNowTick } from '@/hooks/useNowTick'
 import { useSliceStore, SLICE_COLOR_HEX } from '@/stores/sliceStore'
 import { useNetworkStore } from '@/stores/networkStore'
 import { colorClasses } from '@/components/flows/SliceBar'
@@ -18,7 +19,9 @@ export const FlowsPage = () => {
   const selectedFlowId = useFlowStore(s => s.selectedFlowId)
   const setSelectedFlow = useFlowStore(s => s.setSelectedFlow)
   const removeFlow = useFlowStore(s => s.removeFlow)
+  const lastFlowsPollAt = useFlowStore(s => s.lastFlowsPollAt)
   const devices = useNetworkStore(s => s.devices)
+  const now = useNowTick(1000)
 
   const handleDelete = async (flow: FlowRule, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -214,6 +217,7 @@ export const FlowsPage = () => {
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Match</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">State</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Expires</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Bytes</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" />
                   </tr>
@@ -281,6 +285,9 @@ export const FlowsPage = () => {
                             {flow.state.replace('_', ' ')}
                           </span>
                         </td>
+                        <td className="px-3 py-2.5">
+                          <ExpiryBadge flow={flow} now={now} lastPollAt={lastFlowsPollAt} />
+                        </td>
                         <td className="px-3 py-2.5 font-mono text-xs text-slate-500 tabular-nums">
                           {flow.bytes > 1e6
                             ? (flow.bytes / 1e6).toFixed(1) + 'M'
@@ -303,7 +310,7 @@ export const FlowsPage = () => {
                   })}
                   {filteredFlows.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-3 py-10 text-center text-slate-500 text-sm">
+                      <td colSpan={9} className="px-3 py-10 text-center text-slate-500 text-sm">
                         {q
                           ? <><span className="text-slate-400">No flows match </span><span className="font-mono text-slate-300">"{searchQuery}"</span></>
                           : 'No flows in this slice.'}
@@ -319,5 +326,35 @@ export const FlowsPage = () => {
 
       {showEditor && <FlowRuleEditor onClose={() => setShowEditor(false)} />}
     </div>
+  )
+}
+
+// ── Live idle-timeout countdown ────────────────────────────────────────────────
+// durationSec ("life" in ONOS) is time-since-install and never resets, even
+// though the switch's own idle timer does reset on every matching packet.
+// So once a flow has survived past its own timeout once, it's only still
+// alive because traffic keeps refreshing it at the switch — we can't know
+// the real time-to-next-expiry from the REST API, so show "Active" instead
+// of a misleading countdown toward zero.
+const ExpiryBadge = ({ flow, now, lastPollAt }: { flow: FlowRule; now: number; lastPollAt: number }) => {
+  if (flow.isPermanent || flow.timeout === 0) {
+    return <span className="text-[10px] text-slate-600">—</span>
+  }
+
+  const elapsedSincePoll = (now - lastPollAt) / 1000
+  const sinceInstall = flow.durationSec + elapsedSincePoll
+
+  if (sinceInstall >= flow.timeout) {
+    return <span className="badge badge-green text-[10px]">Active</span>
+  }
+
+  const remaining = flow.timeout - sinceInstall
+  return (
+    <span className={clsx(
+      'badge text-[10px] font-mono tabular-nums',
+      remaining > 5 ? 'badge-green' : remaining > 1 ? 'badge-amber' : 'badge-red animate-pulse',
+    )}>
+      {Math.ceil(remaining)}s
+    </span>
   )
 }

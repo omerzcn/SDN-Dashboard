@@ -206,6 +206,7 @@ export const FlowRuleEditor = ({ initialFlow, onClose, onSaved }: FlowRuleEditor
         timeout: parseInt(timeout),
         hardTimeout: 0,
         isPermanent,
+        durationSec: 0,
         state: 'PENDING_ADD',
         match,
         actions,

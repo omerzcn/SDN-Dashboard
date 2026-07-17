@@ -6,6 +6,8 @@ interface FlowState {
   isLoading: boolean
   error: string | null
   selectedFlowId: string | null
+  /** Timestamp (ms) of the last successful flow poll — durationSec is relative to this */
+  lastFlowsPollAt: number
 
   // CRUD Actions
   setFlows: (flows: FlowRule[]) => void
@@ -26,8 +28,9 @@ export const useFlowStore = create<FlowState>()((set, get) => ({
   isLoading: false,
   error: null,
   selectedFlowId: null,
+  lastFlowsPollAt: Date.now(),
 
-  setFlows: (flows) => set({ flows }),
+  setFlows: (flows) => set({ flows, lastFlowsPollAt: Date.now() }),
 
   addFlow: (flow) =>
     set((state) => ({ flows: [flow, ...state.flows] })),
@@ -72,5 +75,6 @@ export const buildFlowRule = (
   timeout: opts.timeout ?? 0,
   hardTimeout: opts.hardTimeout ?? 0,
   isPermanent: opts.isPermanent ?? true,
+  durationSec: 0,
   appId: opts.appId,
 })

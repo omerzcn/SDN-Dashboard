@@ -83,6 +83,7 @@ export const PathBuilder = ({ srcId, dstId, onReset, onCancel, selectedSliceId }
         timeout: 0,
         hardTimeout: 0,
         isPermanent: true,
+        durationSec: 0,
         state: 'ADDED',
         bytes: 0,
         packets: 0,

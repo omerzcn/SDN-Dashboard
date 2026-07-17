@@ -126,35 +126,35 @@ export const MOCK_LINKS: Link[] = [
 
 export const MOCK_FLOWS: FlowRule[] = [
   {
-    id: 'flow-001', deviceId: 'sw-1', tableId: 0, priority: 40000, timeout: 0, hardTimeout: 0,
+    id: 'flow-001', deviceId: 'sw-1', tableId: 0, priority: 40000, timeout: 0, hardTimeout: 0, durationSec: 0,
     isPermanent: true, state: 'ADDED', bytes: 1_048_576, packets: 8192, createdAt: new Date().toISOString(),
     appId: 'org.onosproject.fwd',
     match: { inPort: 1, ethType: '0x0800', ipDst: '10.0.0.2/32' },
     actions: [{ type: 'OUTPUT', port: 4 }],
   },
   {
-    id: 'flow-002', deviceId: 'sw-1', tableId: 0, priority: 40000, timeout: 0, hardTimeout: 0,
+    id: 'flow-002', deviceId: 'sw-1', tableId: 0, priority: 40000, timeout: 0, hardTimeout: 0, durationSec: 0,
     isPermanent: true, state: 'ADDED', bytes: 524_288, packets: 4096, createdAt: new Date().toISOString(),
     appId: 'org.onosproject.fwd',
     match: { inPort: 4, ethType: '0x0800', ipDst: '10.0.0.3/32' },
     actions: [{ type: 'OUTPUT', port: 2 }],
   },
   {
-    id: 'flow-003', deviceId: 'sw-2', tableId: 0, priority: 40000, timeout: 0, hardTimeout: 0,
+    id: 'flow-003', deviceId: 'sw-2', tableId: 0, priority: 40000, timeout: 0, hardTimeout: 0, durationSec: 0,
     isPermanent: true, state: 'ADDED', bytes: 2_097_152, packets: 16384, createdAt: new Date().toISOString(),
     appId: 'org.onosproject.fwd',
     match: { inPort: 2, ethType: '0x0800', ipDst: '10.0.0.3/32' },
     actions: [{ type: 'OUTPUT', port: 3 }],
   },
   {
-    id: 'flow-004', deviceId: 'sw-3', tableId: 0, priority: 10000, timeout: 300, hardTimeout: 0,
+    id: 'flow-004', deviceId: 'sw-3', tableId: 0, priority: 10000, timeout: 300, hardTimeout: 0, durationSec: 250,
     isPermanent: false, state: 'PENDING_ADD', bytes: 0, packets: 0, createdAt: new Date().toISOString(),
     appId: 'org.onosproject.qos',
     match: { ethType: '0x0800', ipProto: 17, udpDst: 5001 },
     actions: [{ type: 'OUTPUT', port: 1 }],
   },
   {
-    id: 'flow-005', deviceId: 'sw-1', tableId: 0, priority: 1, timeout: 0, hardTimeout: 0,
+    id: 'flow-005', deviceId: 'sw-1', tableId: 0, priority: 1, timeout: 0, hardTimeout: 0, durationSec: 0,
     isPermanent: true, state: 'ADDED', bytes: 10_240, packets: 80, createdAt: new Date().toISOString(),
     appId: 'org.onosproject.fwd',
     match: {},
