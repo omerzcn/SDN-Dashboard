@@ -12,6 +12,7 @@ import { AlertsPage     } from '@/pages/AlertsPage'
 import { SettingsPage   } from '@/pages/SettingsPage'
 import { useOnosPolling } from '@/hooks/useOnosPolling'
 import { useSFCHealthMonitor } from '@/hooks/useSFCHealthMonitor'
+import { useSFCMetricsSync } from '@/hooks/useSFCMetricsSync'
 import { startMockSimulation } from '@/utils/mockData'
 
 // Read from .env.local — defaults to demo mode so the project works out of the box
@@ -21,6 +22,7 @@ const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== 'false'
 const RealModePolling = () => {
   useOnosPolling()
   useSFCHealthMonitor()
+  useSFCMetricsSync()
   return null
 }
 

@@ -34,8 +34,36 @@ export const useOnosPolling = () => {
   const metricsTimer   = useRef<ReturnType<typeof setInterval> | null>(null)
   const rttTimer       = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Instantaneous Throughput (Byte-Delta Method)
-  const prevBytesRef   = useRef<Map<string, number>>(new Map())
+  // Instantaneous Throughput (Byte-Delta Method).
+  // ONOS's own port-stat counters only refresh internally every few seconds —
+  // slower than our METRICS_MS poll — so a counter often comes back unchanged
+  // between polls. We track, per counter, the byte value AND the timestamp of
+  // when it actually last changed, so the rate is computed against the real
+  // sampling interval instead of our poll interval (which would divide a
+  // multi-second byte jump by a much shorter elapsed time and wildly overstate
+  // the rate). On an unchanged poll we hold the last computed rate steady.
+  const byteSamplesRef = useRef<Map<string, { bytes: number; ts: number; rateBps: number }>>(new Map())
+
+  // How long we'll hold the last real rate while waiting for ONOS's counter to
+  // refresh before assuming traffic actually stopped and decaying to 0.
+  const STALE_HOLD_MS = METRICS_MS * 4
+
+  const trackRateBps = (key: string, currentBytes: number, now: number): number => {
+    const prev = byteSamplesRef.current.get(key)
+    if (!prev) {
+      byteSamplesRef.current.set(key, { bytes: currentBytes, ts: now, rateBps: 0 })
+      return 0
+    }
+    if (currentBytes === prev.bytes) {
+      if (now - prev.ts > STALE_HOLD_MS) prev.rateBps = 0
+      return prev.rateBps
+    }
+    const deltaBytes = Math.max(0, currentBytes - prev.bytes)
+    const deltaSec   = Math.max(0.001, (now - prev.ts) / 1000)
+    const rateBps    = (deltaBytes * 8) / deltaSec
+    byteSamplesRef.current.set(key, { bytes: currentBytes, ts: now, rateBps })
+    return rateBps
+  }
 
   // ── Topology + flows poll ─────────────────────────────────────────────────
   const pollTopology = useCallback(async () => {
@@ -109,28 +137,21 @@ export const useOnosPolling = () => {
           ?.find((s) => s.port === link.targetPort)
 
         if (srcStats) {
-          const srcKey       = `${link.sourceDeviceId}:${link.sourcePort}`
-          const prevSrcBytes = prevBytesRef.current.get(srcKey) ?? srcStats.txBytes
-          const deltaSrcBytes = Math.max(0, srcStats.txBytes - prevSrcBytes)
-          prevBytesRef.current.set(srcKey, srcStats.txBytes)
+          const srcKey    = `${link.sourceDeviceId}:${link.sourcePort}:tx`
+          const srcRateBps = trackRateBps(srcKey, srcStats.txBytes, ts)
 
-          let deltaDstBytes = 0
+          let dstRateBps = 0
           if (dstStats) {
             // Switch-to-switch link for both directions
-            const dstKey       = `${link.targetDeviceId}:${link.targetPort}`
-            const prevDstBytes = prevBytesRef.current.get(dstKey) ?? dstStats.txBytes
-            deltaDstBytes = Math.max(0, dstStats.txBytes - prevDstBytes)
-            prevBytesRef.current.set(dstKey, dstStats.txBytes)
+            const dstKey = `${link.targetDeviceId}:${link.targetPort}:tx`
+            dstRateBps = trackRateBps(dstKey, dstStats.txBytes, ts)
           } else {
             // Host-access link
-            const srcRxKey       = `${link.sourceDeviceId}:${link.sourcePort}:rx`
-            const prevSrcRxBytes = prevBytesRef.current.get(srcRxKey) ?? srcStats.rxBytes
-            deltaDstBytes = Math.max(0, srcStats.rxBytes - prevSrcRxBytes)
-            prevBytesRef.current.set(srcRxKey, srcStats.rxBytes)
+            const srcRxKey = `${link.sourceDeviceId}:${link.sourcePort}:rx`
+            dstRateBps = trackRateBps(srcRxKey, srcStats.rxBytes, ts)
           }
 
-          const deltaBytes = deltaSrcBytes + deltaDstBytes
-          const tputMbps   = (deltaBytes * 8) / 1e6 / (METRICS_MS / 1000)
+          const tputMbps = (srcRateBps + dstRateBps) / 1e6
 
           const utilPct = Math.min(100, (tputMbps / link.capacityMbps) * 100)
 
