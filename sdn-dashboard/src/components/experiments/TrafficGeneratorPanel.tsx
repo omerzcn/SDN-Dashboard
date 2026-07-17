@@ -6,12 +6,13 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Zap, Play, Square } from 'lucide-react'
+import { Zap, Play, Square, History, Trash2 } from 'lucide-react'
 import { useNetworkStore } from '@/stores/networkStore'
 import { useTrafficStore } from '@/stores/trafficStore'
+import type { TrafficRunRecord } from '@/stores/trafficStore'
 import { startTraffic, stopTraffic, pollTrafficResult } from '@/services/trafficAgent'
-import type { TrafficType, TrafficJobParams } from '@/services/trafficAgent'
-import { formatBandwidth, formatLatency, formatPercent } from '@/utils/format'
+import type { TrafficType, TrafficJobParams, TrafficResult } from '@/services/trafficAgent'
+import { formatBandwidth, formatLatency, formatPercent, formatDate } from '@/utils/format'
 import { clsx } from 'clsx'
 
 const POLL_MS = 2000
@@ -26,11 +27,14 @@ export const TrafficGeneratorPanel = () => {
   const result = useTrafficStore((s) => s.result)
   const running = useTrafficStore((s) => s.running)
   const error = useTrafficStore((s) => s.error)
+  const history = useTrafficStore((s) => s.history)
   const startJob = useTrafficStore((s) => s.startJob)
   const setResult = useTrafficStore((s) => s.setResult)
   const setRunning = useTrafficStore((s) => s.setRunning)
   const setError = useTrafficStore((s) => s.setError)
   const clear = useTrafficStore((s) => s.clear)
+  const addHistoryEntry = useTrafficStore((s) => s.addHistoryEntry)
+  const clearHistory = useTrafficStore((s) => s.clearHistory)
 
   const [sourceHostId, setSourceHostId] = useState('')
   const [targetHostId, setTargetHostId] = useState('')
@@ -40,6 +44,9 @@ export const TrafficGeneratorPanel = () => {
   const [bw, setBw] = useState(20)
   const [streams, setStreams] = useState(1)
 
+  const sourceLabel = hosts.find((h) => h.id === activeJob?.agentHostId)?.label ?? activeJob?.agentHostId ?? ''
+  const targetLabel = hosts.find((h) => h.id === activeJob?.targetHostId)?.label ?? activeJob?.targetHostId ?? ''
+
   // Poll /result every 2s while a job is running
   useEffect(() => {
     if (!running || !activeJob) return
@@ -47,10 +54,20 @@ export const TrafficGeneratorPanel = () => {
       const r = await pollTrafficResult(activeJob.agentIp)
       if (!r) return
       setResult(r)
-      if (r.done) setRunning(false)
+      if (r.done) {
+        setRunning(false)
+        addHistoryEntry({
+          id: `run-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          sourceLabel,
+          targetLabel,
+          type: activeJob.params.type,
+          result: r,
+        })
+      }
     }, POLL_MS)
     return () => clearInterval(timer)
-  }, [running, activeJob, setResult, setRunning])
+  }, [running, activeJob, setResult, setRunning, addHistoryEntry, sourceLabel, targetLabel])
 
   const handleStart = async () => {
     const source = hosts.find((h) => h.id === sourceHostId)
@@ -85,9 +102,6 @@ export const TrafficGeneratorPanel = () => {
     if (activeJob) await stopTraffic(activeJob.agentIp)
     clear()
   }
-
-  const sourceLabel = hosts.find((h) => h.id === activeJob?.agentHostId)?.label
-  const targetLabel = hosts.find((h) => h.id === activeJob?.targetHostId)?.label
 
   return (
     <div className="glass-card p-4 flex flex-col gap-3">
@@ -204,6 +218,32 @@ export const TrafficGeneratorPanel = () => {
           {result.error && <p className="col-span-2 text-xs text-red-400">Agent error: {result.error}</p>}
         </div>
       )}
+
+      {/* History */}
+      <div className="pt-2 border-t border-slate-700/40">
+        <div className="flex items-center gap-2 mb-2">
+          <History className="w-3.5 h-3.5 text-slate-500" />
+          <span className="text-xs font-semibold text-slate-400">History</span>
+          <span className="text-[10px] text-slate-600">({history.length})</span>
+          {history.length > 0 && (
+            <button
+              onClick={clearHistory}
+              className="ml-auto p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              title="Clear history"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        {history.length === 0 ? (
+          <p className="text-[10px] text-slate-600 italic">No completed runs yet.</p>
+        ) : (
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {history.map((entry) => <HistoryRow key={entry.id} entry={entry} />)}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -212,5 +252,27 @@ const ResultTile = ({ label, value, bad = false }: { label: string; value: strin
   <div className="bg-slate-800/60 rounded-lg p-2">
     <p className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</p>
     <p className={clsx('text-sm font-mono', bad ? 'text-amber-400' : 'text-slate-200')}>{value}</p>
+  </div>
+)
+
+// Compact single-line summary of a run's key metric, for the history list.
+const summarizeResult = (r: TrafficResult): string => {
+  if (r.error) return `error: ${r.error}`
+  if (r.throughput_mbps !== undefined) return formatBandwidth(r.throughput_mbps)
+  if (r.avg_rtt_ms !== undefined) return r.avg_rtt_ms !== null ? formatLatency(r.avg_rtt_ms) : '—'
+  return '—'
+}
+
+const HistoryRow = ({ entry }: { entry: TrafficRunRecord }) => (
+  <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-800/40 text-[10px]">
+    <span className="text-slate-500 flex-shrink-0 font-mono">{formatDate(entry.timestamp)}</span>
+    <span className="text-slate-300 truncate">{entry.sourceLabel} → {entry.targetLabel}</span>
+    <span className="text-slate-600 uppercase flex-shrink-0">{entry.type}</span>
+    <span className={clsx(
+      'ml-auto font-mono flex-shrink-0',
+      entry.result.error ? 'text-red-400' : 'text-slate-200',
+    )}>
+      {summarizeResult(entry.result)}
+    </span>
   </div>
 )
