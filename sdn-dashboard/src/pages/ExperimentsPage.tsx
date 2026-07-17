@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Play, Pause, Square, Plus, FlaskConical, Clock, CheckCircle, XCircle } from 'lucide-react'
 import { TopBar } from '@/components/layout/TopBar'
 import { useNetworkStore } from '@/stores/networkStore'
+import { TrafficGeneratorPanel } from '@/components/experiments/TrafficGeneratorPanel'
 import type { Experiment, TrafficProfile, ExperimentStatus } from '@/types'
 import { clsx } from 'clsx'
 
@@ -215,6 +216,9 @@ export const ExperimentsPage = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Experiment list */}
         <div className="w-96 border-r border-slate-700/50 flex flex-col overflow-hidden">
+          <div className="p-3 border-b border-slate-700/40">
+            <TrafficGeneratorPanel />
+          </div>
           <div className="p-3 border-b border-slate-700/40 flex items-center justify-between">
             <span className="text-xs text-slate-400">{experiments.length} experiments</span>
             <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sdn-600/20 text-sdn-400 hover:bg-sdn-600/30 text-xs font-medium transition-colors border border-sdn-600/20">
