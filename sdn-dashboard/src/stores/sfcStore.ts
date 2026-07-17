@@ -115,14 +115,16 @@ interface SFCState {
   updateChain: (id: string, patch: Partial<ServiceFunctionChain>) => void
   /** Called by simulation tick to update per-hop live metrics */
   tickHopMetrics: () => void
+  /** Loads the illustrative demo chains — only called by the demo-mode simulator */
+  loadSeedChains: () => void
 }
 
 let chainCounter = 0
 
 export const useSFCStore = create<SFCState>()(
   persist(
-    (set, get) => ({
-      chains: SEED_CHAINS,
+    (set) => ({
+      chains: [],
       selectedChainId: null,
 
       setSelectedChain: (id) => set({ selectedChainId: id }),
@@ -150,6 +152,8 @@ export const useSFCStore = create<SFCState>()(
         set((s) => ({
           chains: s.chains.map((c) => c.id === id ? { ...c, ...patch } : c),
         })),
+
+      loadSeedChains: () => set({ chains: SEED_CHAINS }),
 
       tickHopMetrics: () =>
         set((s) => ({

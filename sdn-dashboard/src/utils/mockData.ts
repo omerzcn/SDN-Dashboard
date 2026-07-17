@@ -209,6 +209,7 @@ export const startMockSimulation = (): void => {
   const { setTopology, addAlert } = useNetworkStore.getState()
   setTopology({ devices: MOCK_DEVICES, links: MOCK_LINKS, lastUpdated: new Date().toISOString() })
   useFlowStore.getState().setFlows(MOCK_FLOWS)
+  useSFCStore.getState().loadSeedChains()
   MOCK_ALERTS.forEach((a) => addAlert(a))
 
   // Simulate a new device joining after 15 s
