@@ -319,6 +319,7 @@ export const transformOnosDevice = (d: OnosDevice): Device => ({
   bridgeName: 'br0',
   portCount: d.ports?.length,
   ofVersion: d.sw ? 'OF_13' : undefined,
+  role: d.role,
   model: `${d.mfr ?? ''} ${d.hw ?? ''}`.trim() || undefined,
   lastSeen: d.lastUpdate ? new Date(Number(d.lastUpdate)).toISOString() : new Date().toISOString(),
   metadata: d.annotations,
@@ -346,19 +347,34 @@ export const transformOnosHost = (h: OnosHost): Device => {
 }
 
 let linkSerial = 0
-export const transformOnosLink = (l: OnosLink): Link => ({
+export const transformOnosLink = (l: OnosLink, portSpeeds?: Map<string, number>): Link => ({
   id: `${l.src.device}:${l.src.port}-${l.dst.device}:${l.dst.port}`,
   sourceDeviceId: l.src.device,
   sourcePort: Number(l.src.port),
   targetDeviceId: l.dst.device,
   targetPort: Number(l.dst.port),
   utilizationPct: 0,
-  capacityMbps: 1000,
+  capacityMbps: portSpeeds?.get(`${l.src.device}:${l.src.port}`) ?? 1000,
   throughputMbps: 0,
   latencyMs: 0,
   packetLossPct: 0,
   isUp: l.state === 'ACTIVE',
 })
+
+// Real per-port link speed (Mbps), read from ONOS 
+const fetchPortSpeeds = async (deviceIds: string[]): Promise<Map<string, number>> => {
+  const speedMap = new Map<string, number>()
+  const allPorts = await Promise.all(
+    deviceIds.map((id) => getDevicePorts(id).catch(() => [] as OnosPort[])),
+  )
+  allPorts.forEach((ports, i) => {
+    const deviceId = deviceIds[i]
+    ports.forEach((p) => {
+      if (p.portSpeed > 0) speedMap.set(`${deviceId}:${p.port}`, p.portSpeed)
+    })
+  })
+  return speedMap
+}
 
 // ── Unified topology fetch ────────────────────────────────────────────────────
 
@@ -376,6 +392,8 @@ export const fetchTopology = async (): Promise<{
     getLinks(),
     getAllFlows(),
   ])
+
+  const portSpeeds = await fetchPortSpeeds(rawDevices.map((d) => d.id))
 
   // ONOS controller node (synthetic — not returned by /devices)
   const { connection } = useSettingsStore.getState()
@@ -401,7 +419,7 @@ export const fetchTopology = async (): Promise<{
       seen.add(key)
       return true
     })
-    .map(transformOnosLink)
+    .map((l) => transformOnosLink(l, portSpeeds))
 
   // Add host-access links from host location info
   rawHosts.forEach((h) => {
@@ -419,7 +437,7 @@ export const fetchTopology = async (): Promise<{
       targetDeviceId: h.id,
       targetPort: 1,
       utilizationPct: 0,
-      capacityMbps: 100,
+      capacityMbps: portSpeeds.get(`${location.elementId}:${location.port}`) ?? 100,
       throughputMbps: 0,
       latencyMs: 0,
       packetLossPct: 0,

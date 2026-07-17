@@ -56,6 +56,16 @@ export const DeviceInfoPanel = () => {
           <Row label="IP Address" value={device.ipAddress} mono />
           {device.macAddress && <Row label="MAC" value={device.macAddress} mono />}
           {device.onosId    && <Row label="ONOS ID" value={device.onosId} mono />}
+          {device.role      && (
+            <Row
+              label="Controller Role"
+              value={
+                <span className={clsx('badge text-[10px]', device.role === 'MASTER' ? 'badge-green' : 'badge-amber')}>
+                  {device.role}
+                </span>
+              }
+            />
+          )}
           {device.bridgeName && <Row label="Bridge" value={device.bridgeName} mono />}
           {device.portCount !== undefined && <Row label="Ports" value={device.portCount} />}
           {device.ofVersion  && <Row label="OpenFlow" value={device.ofVersion} />}

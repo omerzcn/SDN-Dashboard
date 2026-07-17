@@ -21,6 +21,8 @@ export interface Device {
   portCount?: number
   /** OpenFlow version e.g. "OF_13" */
   ofVersion?: string
+  /** ONOS controller role for this device, e.g. "MASTER" / "STANDBY" / "NONE" */
+  role?: string
   /** Raspberry Pi model / controller version */
   model?: string
   /** Last heartbeat timestamp (ISO 8601) */
