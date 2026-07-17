@@ -11,6 +11,7 @@ import { SFCPage        } from '@/pages/SFCPage'
 import { AlertsPage     } from '@/pages/AlertsPage'
 import { SettingsPage   } from '@/pages/SettingsPage'
 import { useOnosPolling } from '@/hooks/useOnosPolling'
+import { useSFCHealthMonitor } from '@/hooks/useSFCHealthMonitor'
 import { startMockSimulation } from '@/utils/mockData'
 
 // Read from .env.local — defaults to demo mode so the project works out of the box
@@ -19,6 +20,7 @@ const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== 'false'
 // ── Real-mode sub-component: mounts the polling hook inside the React tree ──
 const RealModePolling = () => {
   useOnosPolling()
+  useSFCHealthMonitor()
   return null
 }
 
