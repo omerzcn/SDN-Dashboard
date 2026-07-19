@@ -8,12 +8,9 @@ import { useState } from 'react'
 import { Route, Search } from 'lucide-react'
 import { useNetworkStore } from '@/stores/networkStore'
 import { getPaths } from '@/services/onosApi'
-import type { OnosPathResult, OnosPathEndpoint } from '@/services/onosApi'
+import type { OnosPathResult } from '@/services/onosApi'
+import { pathBottleneckMbps, endpointId } from '@/utils/pathBottleneck'
 import { clsx } from 'clsx'
-
-// A path endpoint is either a switch (device) or a host-facing EDGE hop
-// (host): ONOS uses different field names for each.
-const endpointId = (e: OnosPathEndpoint): string => e.device ?? e.host ?? ''
 
 const selectClass = 'px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sdn-500'
 
@@ -29,39 +26,6 @@ export const PathFinderPanel = () => {
   const [error, setError] = useState<string | null>(null)
 
   const deviceLabel = (id: string) => devices.find((d) => d.id === id)?.label ?? id
-
-  // Smallest real link capacity along the path: the true ceiling for
-  // end-to-end throughput, matched against the same live link data used
-  // elsewhere in the app.
-  const bottleneckMbps = (path: OnosPathResult): number | null => {
-    const known = path.links
-      .map((l) => {
-        if (l.src.host || l.dst.host) {
-          // Host-facing edge hop — match by switch device+port only, since
-          // our stored host-access links use a synthetic port on the host
-          // side rather than ONOS's real edge port number.
-          const hostId = l.src.host ?? l.dst.host
-          const sw    = l.src.host ? l.dst : l.src
-          const match = links.find((link) =>
-            link.sourceDeviceId === sw.device &&
-            link.sourcePort === Number(sw.port) &&
-            link.targetDeviceId === hostId,
-          )
-          return match?.capacityMbps
-        }
-        const srcPort = Number(l.src.port)
-        const dstPort = Number(l.dst.port)
-        const match = links.find((link) =>
-          (link.sourceDeviceId === l.src.device && link.sourcePort === srcPort &&
-            link.targetDeviceId === l.dst.device && link.targetPort === dstPort) ||
-          (link.sourceDeviceId === l.dst.device && link.sourcePort === dstPort &&
-            link.targetDeviceId === l.src.device && link.targetPort === srcPort),
-        )
-        return match?.capacityMbps
-      })
-      .filter((c): c is number => c !== undefined)
-    return known.length > 0 ? Math.min(...known) : null
-  }
 
   const handleFind = async () => {
     if (!srcHostId || !dstHostId) return
@@ -116,7 +80,7 @@ export const PathFinderPanel = () => {
               path.links[0] ? endpointId(path.links[0].src) : '',
               ...path.links.map((l) => endpointId(l.dst)),
             ].filter((id): id is string => Boolean(id))
-            const bottleneck = bottleneckMbps(path)
+            const bottleneck = pathBottleneckMbps(path, links)
 
             return (
               <div key={i} className="bg-slate-800/60 rounded-lg p-2.5 space-y-1.5">
