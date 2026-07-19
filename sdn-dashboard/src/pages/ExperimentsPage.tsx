@@ -3,6 +3,7 @@ import { TrafficGeneratorPanel } from '@/components/experiments/TrafficGenerator
 import { PathFinderPanel } from '@/components/experiments/PathFinderPanel'
 import { PingSweepPanel } from '@/components/experiments/PingSweepPanel'
 import { CongestionDemoPanel } from '@/components/experiments/CongestionDemoPanel'
+import { RunComparisonPanel } from '@/components/experiments/RunComparisonPanel'
 
 export const ExperimentsPage = () => {
   return (
@@ -25,6 +26,9 @@ export const ExperimentsPage = () => {
           </div>
           <div className="w-full max-w-md">
             <CongestionDemoPanel />
+          </div>
+          <div className="w-full max-w-md">
+            <RunComparisonPanel />
           </div>
         </div>
       </div>
