@@ -1,6 +1,7 @@
 import { TopBar } from '@/components/layout/TopBar'
 import { TrafficGeneratorPanel } from '@/components/experiments/TrafficGeneratorPanel'
 import { PathFinderPanel } from '@/components/experiments/PathFinderPanel'
+import { PingSweepPanel } from '@/components/experiments/PingSweepPanel'
 
 export const ExperimentsPage = () => {
   return (
@@ -17,6 +18,9 @@ export const ExperimentsPage = () => {
           </div>
           <div className="w-full max-w-md">
             <PathFinderPanel />
+          </div>
+          <div className="w-full max-w-md">
+            <PingSweepPanel />
           </div>
         </div>
       </div>
