@@ -186,11 +186,31 @@ export const getPortStats = async (deviceId: string) => {
 
 // ── Path/routing ──────────────────────────────────────────────────────────────
 
-export const getPaths = async (srcHostId: string, dstHostId: string) => {
-  const { data } = await api().get(
+export interface OnosPathEndpoint {
+  port: string
+  /** Present for switch-side endpoints */
+  device?: string
+  /** Present instead of device for host-facing (EDGE) endpoints */
+  host?: string
+}
+
+export interface OnosPathLink {
+  src: OnosPathEndpoint
+  dst: OnosPathEndpoint
+  type?: string
+  state?: string
+}
+
+export interface OnosPathResult {
+  cost: number
+  links: OnosPathLink[]
+}
+
+export const getPaths = async (srcHostId: string, dstHostId: string): Promise<OnosPathResult[]> => {
+  const { data } = await api().get<{ paths: OnosPathResult[] }>(
     `/paths/${encodeURIComponent(srcHostId)}/${encodeURIComponent(dstHostId)}`,
   )
-  return data
+  return data.paths ?? []
 }
 
 // ── ONOS application management ───────────────────────────────────────────────
