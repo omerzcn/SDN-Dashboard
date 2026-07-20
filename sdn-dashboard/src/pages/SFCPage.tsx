@@ -3,7 +3,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { NetworkTopologyGraph } from '@/components/topology/NetworkTopologyGraph'
 import { useSFCStore, SLICE_COLOR_HEX, SF_META } from '@/stores/sfcStore'
 import { useNetworkStore } from '@/stores/networkStore'
-import { addFlow } from '@/services/onosApi'
+import { addFlow, deleteFlow } from '@/services/onosApi'
 import type { ServiceFunctionChain, SFCHop, ChainState, Device, Link, SliceColor } from '@/types'
 import { clsx } from 'clsx'
 import {
@@ -95,6 +95,21 @@ const deployChainToOnos = async (chain: ServiceFunctionChain) => {
     title: 'SFC chain deployed',
     message: `"${chain.name}" — flow rules installed on ${chain.hops.length} switch${chain.hops.length !== 1 ? 'es' : ''}.`,
   })
+}
+
+// Removes a chain's installed flow rules from the switches.
+const undeployChainFromOnos = async (chain: ServiceFunctionChain): Promise<string[]> => {
+  const errors: string[] = []
+  for (const hop of chain.hops) {
+    for (const flowId of hop.flowIds) {
+      try {
+        await deleteFlow(hop.deviceId, flowId)
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err))
+      }
+    }
+  }
+  return errors
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -620,6 +635,19 @@ export const SFCPage = () => {
   const { chains, selectedChainId, setSelectedChain, removeChain } = useSFCStore()
   const devices = useNetworkStore((s) => s.devices)
   const links = useNetworkStore((s) => s.links)
+  const addAlert = useNetworkStore((s) => s.addAlert)
+
+  const handleDeleteChain = async (chain: ServiceFunctionChain) => {
+    const errors = await undeployChainFromOnos(chain)
+    if (errors.length > 0) {
+      addAlert({
+        severity: 'warning',
+        title: 'Some flow rules may be orphaned',
+        message: `"${chain.name}" — ${errors.length} flow${errors.length !== 1 ? 's' : ''} on the real switches could not be removed: ${errors[0]}`,
+      })
+    }
+    removeChain(chain.id)
+  }
 
   const [showAddModal, setShowAddModal] = useState(false)
 
@@ -707,7 +735,7 @@ export const SFCPage = () => {
                   dstLabel={dst?.label ?? chain.dstHostId}
                   isSelected={chain.id === selectedChainId}
                   onClick={() => setSelectedChain(chain.id === selectedChainId ? null : chain.id)}
-                  onDelete={() => removeChain(chain.id)}
+                  onDelete={() => handleDeleteChain(chain)}
                 />
               )
             })}
