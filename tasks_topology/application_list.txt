@@ -1,0 +1,11 @@
+## Activate ONOS applications using RESTful API
+
+### Activate "Host Location Provider" Application
+
+### Activate "LLDP Link Provider" Application
+
+### Activate "OpenFlow Provider Suite" Application
+
+### Activate "Proxy ARP/NDP" Application
+
+### "Reactive Forwarding" Application
